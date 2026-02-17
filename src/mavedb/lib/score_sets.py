@@ -842,11 +842,15 @@ def variant_to_csv_row(
     for column_key in columns.get("scores", []):
         parent = variant.data.get("score_data") if variant.data else None
         value = str(parent.get(column_key)) if parent else na_rep
+        if is_null(value):
+            value = na_rep
         key = f"scores.{column_key}" if namespaced else column_key
         row[key] = value
     for column_key in columns.get("counts", []):
         parent = variant.data.get("count_data") if variant.data else None
         value = str(parent.get(column_key)) if parent else na_rep
+        if is_null(value):
+            value = na_rep
         key = f"counts.{column_key}" if namespaced else column_key
         row[key] = value
     for column_key in columns.get("gnomad", []):
