@@ -1444,10 +1444,11 @@ TEST_FUNCTIONAL_RANGE_NORMAL = {
 
 
 TEST_SAVED_FUNCTIONAL_RANGE_NORMAL = {
+    "id": 1,
     "recordType": "FunctionalClassification",
     **{camelize(k): v for k, v in TEST_FUNCTIONAL_RANGE_NORMAL.items() if k not in ("acmg_classification",)},
     "acmgClassification": TEST_SAVED_ACMG_BS3_STRONG_CLASSIFICATION,
-    "variants": [],
+    "variantCount": 0,
 }
 
 
@@ -1464,10 +1465,11 @@ TEST_FUNCTIONAL_RANGE_ABNORMAL = {
 
 
 TEST_SAVED_FUNCTIONAL_RANGE_ABNORMAL = {
+    "id": 2,
     "recordType": "FunctionalClassification",
     **{camelize(k): v for k, v in TEST_FUNCTIONAL_RANGE_ABNORMAL.items() if k not in ("acmg_classification",)},
     "acmgClassification": TEST_SAVED_ACMG_PS3_STRONG_CLASSIFICATION,
-    "variants": [],
+    "variantCount": 0,
 }
 
 
@@ -1481,9 +1483,10 @@ TEST_FUNCTIONAL_RANGE_NOT_SPECIFIED = {
 
 
 TEST_SAVED_FUNCTIONAL_RANGE_NOT_SPECIFIED = {
+    "id": 3,
     "recordType": "FunctionalClassification",
     **{camelize(k): v for k, v in TEST_FUNCTIONAL_RANGE_NOT_SPECIFIED.items()},
-    "variants": [],
+    "variantCount": 0,
 }
 
 
@@ -1498,10 +1501,11 @@ TEST_FUNCTIONAL_CLASSIFICATION_NORMAL = {
 
 
 TEST_SAVED_FUNCTIONAL_CLASSIFICATION_NORMAL = {
+    "id": 1,
     "recordType": "FunctionalClassification",
     **{camelize(k): v for k, v in TEST_FUNCTIONAL_CLASSIFICATION_NORMAL.items() if k not in ("acmg_classification",)},
     "acmgClassification": TEST_SAVED_ACMG_BS3_STRONG_CLASSIFICATION,
-    "variants": [],
+    "variantCount": 0,
 }
 
 
@@ -1516,10 +1520,11 @@ TEST_FUNCTIONAL_CLASSIFICATION_ABNORMAL = {
 
 
 TEST_SAVED_FUNCTIONAL_CLASSIFICATION_ABNORMAL = {
+    "id": 2,
     "recordType": "FunctionalClassification",
     **{camelize(k): v for k, v in TEST_FUNCTIONAL_CLASSIFICATION_ABNORMAL.items() if k not in ("acmg_classification",)},
     "acmgClassification": TEST_SAVED_ACMG_PS3_STRONG_CLASSIFICATION,
-    "variants": [],
+    "variantCount": 0,
 }
 
 
@@ -1531,9 +1536,10 @@ TEST_FUNCTIONAL_CLASSIFICATION_NOT_SPECIFIED = {
 
 
 TEST_SAVED_FUNCTIONAL_CLASSIFICATION_NOT_SPECIFIED = {
+    "id": 3,
     "recordType": "FunctionalClassification",
     **{camelize(k): v for k, v in TEST_FUNCTIONAL_CLASSIFICATION_NOT_SPECIFIED.items()},
-    "variants": [],
+    "variantCount": 0,
 }
 
 
