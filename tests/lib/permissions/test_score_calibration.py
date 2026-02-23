@@ -36,6 +36,7 @@ SCORE_CALIBRATION_UNSUPPORTED_ACTIONS: List[Action] = [
     Action.LOOKUP,
     Action.ADD_BADGE,
     Action.SET_SCORES,
+    Action.ADD_CALIBRATION,
 ]
 
 
