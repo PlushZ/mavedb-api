@@ -725,6 +725,7 @@ def get_functional_classification_variants(
 
     functional_classification = (
         db.query(ScoreCalibrationFunctionalClassification)
+        .options(selectinload(ScoreCalibrationFunctionalClassification.variants))
         .filter(
             ScoreCalibrationFunctionalClassification.id == classification_id,
             ScoreCalibrationFunctionalClassification.calibration_id == calibration.id,
@@ -762,7 +763,12 @@ def get_calibration_all_variants(
 
     calibration = (
         db.query(ScoreCalibration)
-        .options(selectinload(ScoreCalibration.score_set).selectinload(ScoreSet.contributors))
+        .options(
+            selectinload(ScoreCalibration.score_set).selectinload(ScoreSet.contributors),
+            selectinload(ScoreCalibration.functional_classifications).selectinload(
+                ScoreCalibrationFunctionalClassification.variants
+            ),
+        )
         .where(ScoreCalibration.urn == urn)
         .one_or_none()
     )
