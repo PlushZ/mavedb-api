@@ -1578,9 +1578,9 @@ TEST_MINIMAL_CALIBRATION = {
         TEST_FUNCTIONAL_RANGE_ABNORMAL,
         TEST_FUNCTIONAL_RANGE_NOT_SPECIFIED,
     ],
-    "threshold_sources": [],
-    "classification_sources": [],
-    "method_sources": [],
+    "threshold_sources": [{"identifier": TEST_PUBMED_IDENTIFIER, "db_name": "PubMed"}],
+    "classification_sources": [{"identifier": TEST_PUBMED_IDENTIFIER, "db_name": "PubMed"}],
+    "method_sources": [{"identifier": TEST_PUBMED_IDENTIFIER, "db_name": "PubMed"}],
     "calibration_metadata": {},
 }
 
@@ -1670,8 +1670,8 @@ TEST_PATHOGENICITY_SCORE_CALIBRATION = {
         TEST_FUNCTIONAL_RANGE_ABNORMAL,
     ],
     "threshold_sources": [{"identifier": TEST_PUBMED_IDENTIFIER, "db_name": "PubMed"}],
-    "classification_sources": [],
-    "method_sources": [],
+    "classification_sources": [{"identifier": TEST_PUBMED_IDENTIFIER, "db_name": "PubMed"}],
+    "method_sources": [{"identifier": TEST_PUBMED_IDENTIFIER, "db_name": "PubMed"}],
     "calibration_metadata": {},
 }
 
@@ -1687,8 +1687,8 @@ TEST_SAVED_PATHOGENICITY_SCORE_CALIBRATION = {
         TEST_SAVED_FUNCTIONAL_RANGE_ABNORMAL,
     ],
     "thresholdSources": [SAVED_PUBMED_PUBLICATION],
-    "classificationSources": [],
-    "methodSources": [],
+    "classificationSources": [SAVED_PUBMED_PUBLICATION],
+    "methodSources": [SAVED_PUBMED_PUBLICATION],
     "id": 2,
     "investigatorProvided": True,
     "primary": False,

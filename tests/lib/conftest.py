@@ -2,12 +2,14 @@ from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 from shutil import copytree
+from types import SimpleNamespace
 from unittest import mock
 
 import pytest
 from humps import decamelize
 
 from mavedb.models.acmg_classification import ACMGClassification
+from mavedb.models.enums.score_calibration_relation import ScoreCalibrationRelation
 from mavedb.models.enums.user_role import UserRole
 from mavedb.models.experiment import Experiment
 from mavedb.models.experiment_set import ExperimentSet
@@ -183,6 +185,27 @@ def mock_experiment():
     return experiment
 
 
+def _build_mock_publication_associations(saved_calibration_dict: dict) -> list:
+    """Build mock publication identifier associations from a saved calibration dict.
+
+    The SavedScoreCalibration model_validator(mode="before") transforms
+    publication_identifier_associations into threshold/classification/method source
+    fields. Mock calibrations need realistic associations so the transformer produces
+    non-empty source lists (required by the publication source validator).
+    """
+    relation_map = {
+        "thresholdSources": ScoreCalibrationRelation.threshold,
+        "classificationSources": ScoreCalibrationRelation.classification,
+        "methodSources": ScoreCalibrationRelation.method,
+    }
+    associations = []
+    for field, relation in relation_map.items():
+        for pub_dict in saved_calibration_dict.get(field, []):
+            pub = SimpleNamespace(**{decamelize(k): v for k, v in pub_dict.items()})
+            associations.append(SimpleNamespace(relation=relation, publication=pub))
+    return associations
+
+
 @pytest.fixture
 def mock_functional_calibration(mock_user):
     calibration = mock.Mock(spec=ScoreCalibration)
@@ -192,7 +215,9 @@ def mock_functional_calibration(mock_user):
 
     calibration.primary = True  # Ensure functional calibration is primary for tests
     calibration.notes = None
-    calibration.publication_identifier_associations = []
+    calibration.publication_identifier_associations = _build_mock_publication_associations(
+        TEST_SAVED_BRNICH_SCORE_CALIBRATION_RANGE_BASED
+    )
     calibration.created_by = mock_user
     calibration.modified_by = mock_user
     return calibration
@@ -207,7 +232,9 @@ def mock_pathogenicity_calibration(mock_user):
 
     calibration.primary = True  # Ensure pathogenicity calibration is primary for tests
     calibration.notes = None
-    calibration.publication_identifier_associations = []
+    calibration.publication_identifier_associations = _build_mock_publication_associations(
+        TEST_SAVED_PATHOGENICITY_SCORE_CALIBRATION
+    )
     calibration.created_by = mock_user
     calibration.modified_by = mock_user
     return calibration

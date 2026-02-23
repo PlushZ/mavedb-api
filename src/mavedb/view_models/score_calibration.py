@@ -436,6 +436,43 @@ class ScoreCalibrationModify(ScoreCalibrationBase):
     classification_sources: Sequence[PublicationIdentifierCreate]
     method_sources: Sequence[PublicationIdentifierCreate]
 
+    # TODO#668: Move this validator to ScoreCalibrationBase once legacy calibrations have been
+    # backfilled with publication associations. Currently on the write model only so that existing
+    # calibrations without publications can still be serialized for API read responses.
+    @model_validator(mode="after")
+    def functional_classifications_require_publication_sources(
+        self: "ScoreCalibrationModify",
+    ) -> "ScoreCalibrationModify":
+        """Enforce publication source requirements when functional classifications are present.
+
+        Calibrations with functional classifications must cite method and threshold publications.
+        If any classification includes ACMG evidence, classification publications are also required.
+        Baseline-score-only calibrations (no functional classifications) are exempt.
+        """
+        if not self.functional_classifications:
+            return self
+
+        if not self.method_sources:
+            raise ValidationError(
+                "Calibrations with functional classifications must provide at least one method source publication.",
+                custom_loc=["body", "methodSources"],
+            )
+
+        if not self.threshold_sources:
+            raise ValidationError(
+                "Calibrations with functional classifications must provide at least one threshold source publication.",
+                custom_loc=["body", "thresholdSources"],
+            )
+
+        has_acmg_classification = any(fc.acmg_classification is not None for fc in self.functional_classifications)
+        if has_acmg_classification and not self.classification_sources:
+            raise ValidationError(
+                "Calibrations with ACMG classifications must provide at least one classification source publication.",
+                custom_loc=["body", "classificationSources"],
+            )
+
+        return self
+
 
 class ScoreCalibrationCreate(ScoreCalibrationModify):
     """Model used to create a new score calibration."""

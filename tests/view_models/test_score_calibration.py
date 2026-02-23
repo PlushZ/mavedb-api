@@ -8,6 +8,7 @@ from mavedb.models.enums.functional_classification import FunctionalClassificati
 from mavedb.models.enums.score_calibration_relation import ScoreCalibrationRelation
 from mavedb.view_models.score_calibration import (
     FunctionalClassificationCreate,
+    SavedScoreCalibration,
     ScoreCalibration,
     ScoreCalibrationCreate,
     ScoreCalibrationWithScoreSetUrn,
@@ -695,3 +696,34 @@ def test_score_calibration_with_score_set_urn_can_be_created_from_non_orm_contex
 
     assert sc.title == data["title"]
     assert sc.score_set_urn == data["score_set_urn"]
+
+
+def test_saved_score_calibration_with_empty_publication_sources_and_functional_classifications():
+    """Legacy calibrations with functional classifications but no publication sources should serialize without error.
+
+    The publication source validator lives on ScoreCalibrationModify (write path), not ScoreCalibrationBase,
+    so SavedScoreCalibration can load existing DB data that predates the publication requirement.
+    """
+    data = deepcopy(TEST_SAVED_BRNICH_SCORE_CALIBRATION_RANGE_BASED)
+    data["thresholdSources"] = []
+    data["classificationSources"] = []
+    data["methodSources"] = []
+
+    sc = SavedScoreCalibration.model_validate(data)
+
+    assert sc.title == data["title"]
+    assert len(sc.functional_classifications) > 0
+    assert sc.threshold_sources == []
+    assert sc.classification_sources == []
+    assert sc.method_sources == []
+
+
+def test_create_calibration_with_functional_classifications_requires_publication_sources():
+    """Creating a calibration with functional classifications but no publications should fail."""
+    data = deepcopy(TEST_BRNICH_SCORE_CALIBRATION_RANGE_BASED)
+    data["threshold_sources"] = []
+    data["classification_sources"] = []
+    data["method_sources"] = []
+
+    with pytest.raises(ValidationError, match="must provide at least one method source publication"):
+        ScoreCalibrationCreate.model_validate(data)
