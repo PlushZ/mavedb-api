@@ -29,7 +29,15 @@ def transform_score_set_list_to_urn_list(score_sets: Optional[list[ScoreSet]]) -
     if not score_sets:
         return []
 
-    return [score_set.urn for score_set in score_sets if score_set.superseding_score_set is None]
+    # Include a score set if it has no superseding version, or if its superseding version is
+    # unpublished. An unpublished replacement should not hide its published precursor from URN
+    # lists, since consumers would lose access to the published data and gain a tmp: URN they
+    # cannot resolve.
+    return [
+        score_set.urn
+        for score_set in score_sets
+        if score_set.superseding_score_set is None or score_set.superseding_score_set.published_date is None
+    ]
 
 
 def transform_experiment_list_to_urn_list(experiments: Optional[list[Experiment]]) -> list[Optional[str]]:
