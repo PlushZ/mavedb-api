@@ -195,7 +195,7 @@ def _build_mock_publication_associations(saved_calibration_dict: dict) -> list:
     """
     relation_map = {
         "thresholdSources": ScoreCalibrationRelation.threshold,
-        "classificationSources": ScoreCalibrationRelation.classification,
+        "evidenceSources": ScoreCalibrationRelation.evidence,
         "methodSources": ScoreCalibrationRelation.method,
     }
     associations = []

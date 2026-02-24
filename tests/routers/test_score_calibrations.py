@@ -4558,7 +4558,7 @@ def test_cannot_create_score_calibration_with_classifications_and_no_method_sour
                 }
             ],
             "thresholdSources": [{"identifier": TEST_PUBMED_IDENTIFIER, "dbName": "PubMed"}],
-            "classificationSources": [],
+            "evidenceSources": [],
             "methodSources": [],
         },
     )
@@ -4580,7 +4580,7 @@ def test_cannot_create_score_calibration_with_classifications_and_no_threshold_s
                 }
             ],
             "thresholdSources": [],
-            "classificationSources": [],
+            "evidenceSources": [],
             "methodSources": [{"identifier": TEST_PUBMED_IDENTIFIER, "dbName": "PubMed"}],
         },
     )
@@ -4588,9 +4588,7 @@ def test_cannot_create_score_calibration_with_classifications_and_no_threshold_s
     assert response.status_code == 422
 
 
-def test_cannot_create_score_calibration_with_acmg_classification_and_no_classification_sources(
-    client, setup_router_db
-):
+def test_cannot_create_score_calibration_with_acmg_classification_and_no_evidence_sources(client, setup_router_db):
     response = client.post(
         "/api/v1/score-calibrations",
         json={
@@ -4606,7 +4604,7 @@ def test_cannot_create_score_calibration_with_acmg_classification_and_no_classif
                 }
             ],
             "thresholdSources": [{"identifier": TEST_PUBMED_IDENTIFIER, "dbName": "PubMed"}],
-            "classificationSources": [],
+            "evidenceSources": [],
             "methodSources": [{"identifier": TEST_PUBMED_IDENTIFIER, "dbName": "PubMed"}],
         },
     )
@@ -4643,7 +4641,7 @@ def test_can_create_baseline_only_calibration_without_publication_sources(
             "baselineScore": 1.0,
             "baselineScoreDescription": "Wild-type score",
             "thresholdSources": [],
-            "classificationSources": [],
+            "evidenceSources": [],
             "methodSources": [],
         },
     )
