@@ -26,12 +26,12 @@ from mavedb.view_models.publication_identifier import PublicationIdentifier
 
 # TODO(#372)
 def transform_score_set_list_to_urn_list(
-    score_sets: Optional[list[ScoreSet]], include_superseding: bool = False
+    score_sets: Optional[list[ScoreSet]], include_superseded: bool = False
 ) -> list[Optional[str]]:
     if not score_sets:
         return []
 
-    if include_superseding:
+    if include_superseded:
         return [score_set.urn for score_set in score_sets]
     else:
         return [score_set.urn for score_set in score_sets if score_set.superseding_score_set is None]

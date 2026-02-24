@@ -117,7 +117,7 @@ class SavedCollection(CollectionBase):
                 # Don't exclude superseded score sets here, since we want to preserve them in the collection context and display them with their superseding score sets in the UI.
                 # Instead, we should include UI indicators of superseded status in the collection context to make this clear to users.
                 data.__setattr__(
-                    "score_set_urns", transform_score_set_list_to_urn_list(data.score_sets, include_superseding=True)
+                    "score_set_urns", transform_score_set_list_to_urn_list(data.score_sets, include_superseded=True)
                 )
             except (AttributeError, KeyError) as exc:
                 raise ValidationError(f"Unable to coerce score set urns for {cls.__name__}: {exc}.")
@@ -169,7 +169,7 @@ class OfficialCollection(BaseModel):
             try:
                 # We allow superseded score sets here, since we want to preserve them in the collection context and display them with their superseding score sets in the UI.
                 data.__setattr__(
-                    "score_set_urns", transform_score_set_list_to_urn_list(data.score_sets, include_superseding=True)
+                    "score_set_urns", transform_score_set_list_to_urn_list(data.score_sets, include_superseded=True)
                 )
             except (AttributeError, KeyError) as exc:
                 raise ValidationError(f"Unable to coerce score set urns for {cls.__name__}: {exc}.")
