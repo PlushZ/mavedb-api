@@ -73,6 +73,10 @@ tests/
 | API endpoints | kebab-case | `/score-sets`, `/experiment-sets` |
 | View model aliases | camelCase (auto) | Python `score_set` → JSON `scoreSet` |
 
+## Living Documentation
+
+Documentation and instruction files (`.github/instructions/`, `.claude/`, `CLAUDE.md`, `README.md`, etc.) are living documents. When making code changes that render existing instructions or documentation obsolete, update those files as part of the same changeset. Never leave stale docs behind.
+
 ## Commenting Guidelines
 
 **Core principle: explain WHY, not WHAT. Focus on bioinformatics reasoning.**
