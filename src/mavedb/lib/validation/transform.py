@@ -5,19 +5,19 @@ side-effect from v1.
 """
 
 from typing import Optional, Sequence, Union
-from typing_extensions import TypedDict
 
 from pydantic import TypeAdapter
+from typing_extensions import TypedDict
 
-from mavedb.models.enums.score_calibration_relation import ScoreCalibrationRelation
-from mavedb.models.enums.contribution_role import ContributionRole
-from mavedb.models.experiment_set import ExperimentSet
 from mavedb.models.collection_user_association import CollectionUserAssociation
-from mavedb.models.experiment_publication_identifier import ExperimentPublicationIdentifierAssociation
-from mavedb.models.score_set_publication_identifier import ScoreSetPublicationIdentifierAssociation
-from mavedb.models.score_calibration_publication_identifier import ScoreCalibrationPublicationIdentifierAssociation
+from mavedb.models.enums.contribution_role import ContributionRole
+from mavedb.models.enums.score_calibration_relation import ScoreCalibrationRelation
 from mavedb.models.experiment import Experiment
+from mavedb.models.experiment_publication_identifier import ExperimentPublicationIdentifierAssociation
+from mavedb.models.experiment_set import ExperimentSet
+from mavedb.models.score_calibration_publication_identifier import ScoreCalibrationPublicationIdentifierAssociation
 from mavedb.models.score_set import ScoreSet
+from mavedb.models.score_set_publication_identifier import ScoreSetPublicationIdentifierAssociation
 from mavedb.models.target_gene import TargetGene
 from mavedb.models.user import User
 from mavedb.view_models.external_gene_identifier_offset import ExternalGeneIdentifierOffset
@@ -25,11 +25,16 @@ from mavedb.view_models.publication_identifier import PublicationIdentifier
 
 
 # TODO(#372)
-def transform_score_set_list_to_urn_list(score_sets: Optional[list[ScoreSet]]) -> list[Optional[str]]:
+def transform_score_set_list_to_urn_list(
+    score_sets: Optional[list[ScoreSet]], include_superseded: bool = False
+) -> list[Optional[str]]:
     if not score_sets:
         return []
 
-    return [score_set.urn for score_set in score_sets if score_set.superseding_score_set is None]
+    if include_superseded:
+        return [score_set.urn for score_set in score_sets]
+    else:
+        return [score_set.urn for score_set in score_sets if score_set.superseding_score_set is None]
 
 
 def transform_experiment_list_to_urn_list(experiments: Optional[list[Experiment]]) -> list[Optional[str]]:
