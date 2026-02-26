@@ -79,10 +79,16 @@ def build_search_score_sets_query_filter(
 ):
     superseding_score_set = aliased(ScoreSet)
 
-    # Limit to unsuperseded score sets.
-    # TODO#??? Prevent unpublished superseding score sets from hiding their published precursors in search results.
+    # Exclude superseded score sets from search results, but only when the superseding
+    # version is published. An unpublished replacement should not hide its published
+    # precursor from public search results.
     query = query.join(superseding_score_set, ScoreSet.superseding_score_set, isouter=True)
-    query = query.filter(superseding_score_set.id.is_(None))
+    query = query.filter(
+        or_(
+            superseding_score_set.id.is_(None),
+            superseding_score_set.published_date.is_(None),
+        )
+    )
 
     if owner_or_contributor is not None:
         query = query.filter(

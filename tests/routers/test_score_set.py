@@ -53,6 +53,7 @@ from tests.helpers.constants import (
     TEST_SAVED_CLINVAR_CONTROL,
     TEST_SAVED_GENERIC_CLINICAL_CONTROL,
     TEST_SAVED_GNOMAD_VARIANT,
+    TEST_SAVED_TAXONOMY,
     TEST_USER,
     VALID_CLINGEN_CA_ID,
 )
@@ -2253,6 +2254,144 @@ def test_search_public_score_sets_not_showing_private_score_set(
     assert response.json()["numScoreSets"] == 1
     assert len(response.json()["scoreSets"]) == 1
     assert response.json()["scoreSets"][0]["urn"] == published_score_set_1["urn"]
+
+
+def test_search_published_score_set_not_hidden_by_unpublished_superseding_version(
+    session, data_provider, client, setup_router_db, data_files
+):
+    """A published score set should still appear in search results when its superseding version is unpublished."""
+    experiment = create_experiment(client, {"title": "Experiment 1"})
+    score_set = create_seq_score_set(client, experiment["urn"], update={"title": "Test Fnord Score Set"})
+    score_set = mock_worker_variant_insertion(client, session, data_provider, score_set, data_files / "scores.csv")
+
+    with patch.object(arq.ArqRedis, "enqueue_job", return_value=None) as worker_queue:
+        published_score_set = publish_score_set(client, score_set["urn"])
+        worker_queue.assert_called_once()
+
+    # Create an unpublished superseding score set — this should NOT hide the published precursor.
+    create_seq_score_set(
+        client,
+        published_score_set["experiment"]["urn"],
+        update={"supersededScoreSetUrn": published_score_set["urn"]},
+    )
+
+    search_payload = {"text": "fnord"}
+    response = client.post("/api/v1/score-sets/search", json=search_payload)
+    assert response.status_code == 200
+    assert response.json()["numScoreSets"] == 1
+    assert response.json()["scoreSets"][0]["urn"] == published_score_set["urn"]
+
+
+def test_search_published_score_set_hidden_by_published_superseding_version(
+    session, data_provider, client, setup_router_db, data_files
+):
+    """A published score set should be hidden from search results when its superseding version is also published."""
+    experiment = create_experiment(client, {"title": "Experiment 1"})
+    score_set = create_seq_score_set(client, experiment["urn"], update={"title": "Test Fnord Score Set"})
+    score_set = mock_worker_variant_insertion(client, session, data_provider, score_set, data_files / "scores.csv")
+
+    with patch.object(arq.ArqRedis, "enqueue_job", return_value=None) as worker_queue:
+        published_score_set = publish_score_set(client, score_set["urn"])
+        worker_queue.assert_called_once()
+
+    # Create and publish a superseding score set — this SHOULD hide the precursor.
+    superseding = create_seq_score_set(
+        client,
+        published_score_set["experiment"]["urn"],
+        update={"title": "Test Fnord Score Set v2", "supersededScoreSetUrn": published_score_set["urn"]},
+    )
+    superseding = mock_worker_variant_insertion(client, session, data_provider, superseding, data_files / "scores.csv")
+    with patch.object(arq.ArqRedis, "enqueue_job", return_value=None) as worker_queue:
+        published_superseding = publish_score_set(client, superseding["urn"])
+        worker_queue.assert_called_once()
+
+    search_payload = {"text": "fnord"}
+    response = client.post("/api/v1/score-sets/search", json=search_payload)
+    assert response.status_code == 200
+    # Only the superseding version should appear; the precursor should be hidden.
+    assert response.json()["numScoreSets"] == 1
+    assert response.json()["scoreSets"][0]["urn"] == published_superseding["urn"]
+
+
+def test_search_filter_options_not_hidden_by_unpublished_superseding_version(
+    session, data_provider, client, setup_router_db, data_files
+):
+    """Filter options should include targets from published score sets even when superseded by unpublished versions."""
+    experiment = create_experiment(client, {"title": "Experiment 1"})
+    score_set = create_seq_score_set(client, experiment["urn"])
+    score_set = mock_worker_variant_insertion(client, session, data_provider, score_set, data_files / "scores.csv")
+
+    with patch.object(arq.ArqRedis, "enqueue_job", return_value=None) as worker_queue:
+        published_score_set = publish_score_set(client, score_set["urn"])
+        worker_queue.assert_called_once()
+
+    target_name = published_score_set["targetGenes"][0]["name"]
+
+    # Create an unpublished superseding version.
+    create_seq_score_set(
+        client,
+        published_score_set["experiment"]["urn"],
+        update={"supersededScoreSetUrn": published_score_set["urn"]},
+    )
+
+    response = client.post("/api/v1/score-sets/search/filter-options", json={})
+    assert response.status_code == 200
+    target_names = [opt["value"] for opt in response.json()["targetGeneNames"]]
+    assert target_name in target_names
+
+
+def test_search_filter_options_hidden_by_published_superseding_version(
+    session, data_provider, client, setup_router_db, data_files
+):
+    """Filter options should NOT include targets from published score sets when superseded by published versions."""
+    experiment = create_experiment(client, {"title": "Experiment 1"})
+    score_set = create_seq_score_set(client, experiment["urn"])
+    score_set = mock_worker_variant_insertion(client, session, data_provider, score_set, data_files / "scores.csv")
+
+    with patch.object(arq.ArqRedis, "enqueue_job", return_value=None) as worker_queue:
+        published_score_set = publish_score_set(client, score_set["urn"])
+        worker_queue.assert_called_once()
+
+    target_name = published_score_set["targetGenes"][0]["name"]
+
+    # Create and publish a superseding version.
+    superseding = create_seq_score_set(
+        client,
+        published_score_set["experiment"]["urn"],
+        update={
+            "supersededScoreSetUrn": published_score_set["urn"],
+            "targetGenes": [
+                {
+                    "name": "TEST2",
+                    "category": "protein_coding",
+                    "externalIdentifiers": [],
+                    "targetSequence": {
+                        "sequenceType": "dna",
+                        "sequence": "ACGTTT",
+                        "taxonomy": {
+                            "code": TEST_SAVED_TAXONOMY["code"],
+                            "organismName": TEST_SAVED_TAXONOMY["organism_name"],
+                            "commonName": TEST_SAVED_TAXONOMY["common_name"],
+                            "rank": TEST_SAVED_TAXONOMY["rank"],
+                            "hasDescribedSpeciesName": TEST_SAVED_TAXONOMY["has_described_species_name"],
+                            "articleReference": TEST_SAVED_TAXONOMY["article_reference"],
+                            "id": TEST_SAVED_TAXONOMY["id"],
+                            "url": TEST_SAVED_TAXONOMY["url"],
+                        },
+                    },
+                }
+            ],
+        },
+    )
+    superseding = mock_worker_variant_insertion(client, session, data_provider, superseding, data_files / "scores.csv")
+    with patch.object(arq.ArqRedis, "enqueue_job", return_value=None) as worker_queue:
+        publish_score_set(client, superseding["urn"])
+        worker_queue.assert_called_once()
+
+    response = client.post("/api/v1/score-sets/search/filter-options", json={})
+    assert response.status_code == 200
+    target_names = [opt["value"] for opt in response.json()["targetGeneNames"]]
+    assert target_name not in target_names
 
 
 ########################################################################################################################

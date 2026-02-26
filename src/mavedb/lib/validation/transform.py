@@ -34,7 +34,11 @@ def transform_score_set_list_to_urn_list(
     if include_superseded:
         return [score_set.urn for score_set in score_sets]
     else:
-        return [score_set.urn for score_set in score_sets if score_set.superseding_score_set is None]
+        return [
+          score_set.urn
+          for score_set in score_sets
+          if score_set.superseding_score_set is None or score_set.superseding_score_set.published_date is None
+        ]
 
 
 def transform_experiment_list_to_urn_list(experiments: Optional[list[Experiment]]) -> list[Optional[str]]:
