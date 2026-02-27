@@ -2,7 +2,7 @@ import re
 import xml.etree.ElementTree as ET
 
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
 from mavedb.lib.logging.logged_route import LoggedRoute
 
