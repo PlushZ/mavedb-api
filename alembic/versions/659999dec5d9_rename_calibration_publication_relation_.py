@@ -1,7 +1,7 @@
 """rename calibration publication relation classification to evidence
 
 Revision ID: 659999dec5d9
-Revises: dcf8572d3a17
+Revises: e1f2a3b4c5d6
 Create Date: 2026-02-23 00:00:00.000000
 
 """
@@ -10,7 +10,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "659999dec5d9"
-down_revision = "dcf8572d3a17"
+down_revision = "e1f2a3b4c5d6"
 branch_labels = None
 depends_on = None
 
