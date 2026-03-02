@@ -227,6 +227,15 @@ def test_create_score_set_with_score_calibration(client, mock_publication_fetch,
     expected_calibration["private"] = True
     expected_calibration["primary"] = False
     expected_calibration["investigatorProvided"] = True
+    # Match functional classifications by a stable identifier (label).
+    response_fcs_by_label = {
+        fc["label"]: fc for fc in response_data["scoreCalibrations"][0]["functionalClassifications"]
+    }
+    for expected_fc in expected_calibration["functionalClassifications"]:
+        label = expected_fc["label"]
+        if label in response_fcs_by_label:
+            expected_fc["id"] = response_fcs_by_label[label]["id"]
+
     expected_response["scoreCalibrations"] = [expected_calibration]
 
     assert sorted(expected_response.keys()) == sorted(response_data.keys())

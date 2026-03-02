@@ -35,10 +35,7 @@ from mavedb.view_models.publication_identifier import (
 from mavedb.view_models.user import SavedUser, User
 
 if TYPE_CHECKING:
-    from mavedb.view_models.variant import (
-        SavedVariantEffectMeasurement,
-        VariantEffectMeasurement,
-    )
+    from mavedb.view_models.variant import VariantEffectMeasurement
 
 ### Functional range models
 
@@ -242,9 +239,10 @@ class FunctionalClassificationCreate(FunctionalClassificationModify):
 class SavedFunctionalClassification(FunctionalClassificationBase):
     """Persisted functional range model (includes record type metadata)."""
 
+    id: int
     record_type: str = None  # type: ignore
     acmg_classification: Optional[SavedACMGClassification] = None
-    variants: Sequence["SavedVariantEffectMeasurement"] = []
+    variant_count: int = 0
 
     _record_type_factory = record_type_validator()(set_record_type)
 
@@ -259,6 +257,12 @@ class FunctionalClassification(SavedFunctionalClassification):
     """Complete functional range model returned by the API."""
 
     acmg_classification: Optional[ACMGClassification] = None
+
+
+class FunctionalClassificationVariants(BaseModel):
+    """Response model for functional classification variant endpoints."""
+
+    functional_classification_id: int
     variants: Sequence["VariantEffectMeasurement"] = []
 
 
