@@ -76,7 +76,7 @@ class TransformedScoreSetPublicationIdentifiers(TypedDict):
 
 class TransformedCalibrationPublicationIdentifiers(TypedDict):
     threshold_sources: list[PublicationIdentifier]
-    classification_sources: list[PublicationIdentifier]
+    evidence_sources: list[PublicationIdentifier]
     method_sources: list[PublicationIdentifier]
 
 
@@ -108,7 +108,7 @@ def transform_score_calibration_publication_identifiers(
     publication_identifiers: Optional[Sequence[ScoreCalibrationPublicationIdentifierAssociation]],
 ) -> TransformedCalibrationPublicationIdentifiers:
     transformed_publication_identifiers = TransformedCalibrationPublicationIdentifiers(
-        threshold_sources=[], classification_sources=[], method_sources=[]
+        threshold_sources=[], evidence_sources=[], method_sources=[]
     )
 
     if not publication_identifiers:
@@ -119,10 +119,10 @@ def transform_score_calibration_publication_identifiers(
         for assc in publication_identifiers
         if assc.relation is ScoreCalibrationRelation.threshold
     ]
-    transformed_publication_identifiers["classification_sources"] = [
+    transformed_publication_identifiers["evidence_sources"] = [
         TypeAdapter(PublicationIdentifier).validate_python(assc.publication)
         for assc in publication_identifiers
-        if assc.relation is ScoreCalibrationRelation.classification
+        if assc.relation is ScoreCalibrationRelation.evidence
     ]
     transformed_publication_identifiers["method_sources"] = [
         TypeAdapter(PublicationIdentifier).validate_python(assc.publication)

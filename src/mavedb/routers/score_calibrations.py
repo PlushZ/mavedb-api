@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from mavedb import deps
 from mavedb.lib.authentication import get_current_user
-from mavedb.lib.authorization import require_current_user
+from mavedb.lib.authorization import require_current_user_with_email
 from mavedb.lib.flexible_model_loader import json_or_form_loader
 from mavedb.lib.logging import LoggedRoute
 from mavedb.lib.logging.context import (
@@ -218,7 +218,7 @@ async def create_score_calibration_route(
         description=f"CSV file containing variant classifications. This file must contain two columns: '{calibration_variant_column_name}' and '{calibration_class_column_name}'.",
     ),
     db: Session = Depends(deps.get_db),
-    user_data: UserData = Depends(require_current_user),
+    user_data: UserData = Depends(require_current_user_with_email),
 ) -> ScoreCalibration:
     """
     Create a new score calibration.
@@ -261,9 +261,11 @@ async def create_score_calibration_route(
 
     ## Requirements
     - The score set URN must be provided to associate the calibration with an existing score set
-    - User must have write permission on the associated score set
+    - User must have an email address associated with their account
     - If uploading a classes_file, it must be a valid CSV with variant classification data
-
+    - User must have ADD_CALIBRATION permission on the score set (any authenticated user for
+      published sets; contributors/owners/admins for private sets)
+      
     ## File Upload Details
     The `classes_file` parameter accepts CSV files containing variant classification data.
     The file should have appropriate headers and contain columns for variant urns and class names.
@@ -281,9 +283,7 @@ async def create_score_calibration_route(
         logger.debug("ScoreSet not found", extra=logging_context())
         raise HTTPException(status_code=404, detail=f"score set with URN '{calibration.score_set_urn}' not found")
 
-    # TODO#539: Allow any authenticated user to upload a score calibration for a score set, not just those with
-    #           permission to update the score set itself.
-    assert_permission(user_data, score_set, Action.UPDATE)
+    assert_permission(user_data, score_set, Action.ADD_CALIBRATION)
 
     if calibration.class_based and not classes_file:
         raise HTTPException(
@@ -367,7 +367,7 @@ async def modify_score_calibration_route(
         description=f"CSV file containing variant classifications. This file must contain two columns: '{calibration_variant_column_name}' and '{calibration_class_column_name}'.",
     ),
     db: Session = Depends(deps.get_db),
-    user_data: UserData = Depends(require_current_user),
+    user_data: UserData = Depends(require_current_user_with_email),
 ) -> ScoreCalibration:
     """
     Modify an existing score calibration by its URN.
@@ -409,8 +409,9 @@ async def modify_score_calibration_route(
     ```
 
     ## Requirements
+    - User must have an email address associated with their account
     - User must have update permission on the calibration
-    - If changing the score_set_urn, user must have permission on the new score set
+    - If changing the score_set_urn, user must have ADD_CALIBRATION permission on the target score set
     - All fields in the update are optional - only provided fields will be modified
 
     ## File Upload Details
@@ -435,9 +436,7 @@ async def modify_score_calibration_route(
                 status_code=404, detail=f"score set with URN '{calibration_update.score_set_urn}' not found"
             )
 
-        # TODO#539: Allow any authenticated user to upload a score calibration for a score set, not just those with
-        #           permission to update the score set itself.
-        assert_permission(user_data, score_set_update, Action.UPDATE)
+        assert_permission(user_data, score_set_update, Action.ADD_CALIBRATION)
     else:
         score_set_update = None
 
@@ -505,7 +504,7 @@ async def delete_score_calibration_route(
     *,
     urn: str,
     db: Session = Depends(deps.get_db),
-    user_data: UserData = Depends(require_current_user),
+    user_data: UserData = Depends(require_current_user_with_email),
 ) -> None:
     """
     Delete an existing score calibration by its URN.
@@ -542,7 +541,7 @@ async def promote_score_calibration_to_primary_route(
         False, description="Whether to demote any existing primary calibration", alias="demoteExistingPrimary"
     ),
     db: Session = Depends(deps.get_db),
-    user_data: UserData = Depends(require_current_user),
+    user_data: UserData = Depends(require_current_user_with_email),
 ) -> ScoreCalibration:
     """
     Promote a score calibration to be the primary calibration for its associated score set.
@@ -608,7 +607,7 @@ def demote_score_calibration_from_primary_route(
     *,
     urn: str,
     db: Session = Depends(deps.get_db),
-    user_data: UserData = Depends(require_current_user),
+    user_data: UserData = Depends(require_current_user_with_email),
 ) -> ScoreCalibration:
     """
     Demote a score calibration from being the primary calibration for its associated score set.
@@ -647,7 +646,7 @@ def publish_score_calibration_route(
     *,
     urn: str,
     db: Session = Depends(deps.get_db),
-    user_data: UserData = Depends(require_current_user),
+    user_data: UserData = Depends(require_current_user_with_email),
 ) -> ScoreCalibration:
     """
     Publish a score calibration, making it publicly visible.

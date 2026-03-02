@@ -1578,9 +1578,9 @@ TEST_MINIMAL_CALIBRATION = {
         TEST_FUNCTIONAL_RANGE_ABNORMAL,
         TEST_FUNCTIONAL_RANGE_NOT_SPECIFIED,
     ],
-    "threshold_sources": [],
-    "classification_sources": [],
-    "method_sources": [],
+    "threshold_sources": [{"identifier": TEST_PUBMED_IDENTIFIER, "db_name": "PubMed"}],
+    "evidence_sources": [{"identifier": TEST_PUBMED_IDENTIFIER, "db_name": "PubMed"}],
+    "method_sources": [{"identifier": TEST_PUBMED_IDENTIFIER, "db_name": "PubMed"}],
     "calibration_metadata": {},
 }
 
@@ -1596,7 +1596,7 @@ TEST_BRNICH_SCORE_CALIBRATION_RANGE_BASED = {
         TEST_FUNCTIONAL_RANGE_NOT_SPECIFIED,
     ],
     "threshold_sources": [{"identifier": TEST_PUBMED_IDENTIFIER, "db_name": "PubMed"}],
-    "classification_sources": [
+    "evidence_sources": [
         {"identifier": TEST_PUBMED_IDENTIFIER, "db_name": "PubMed"},
         {"identifier": TEST_BIORXIV_IDENTIFIER, "db_name": "bioRxiv"},
     ],
@@ -1609,7 +1609,7 @@ TEST_SAVED_BRNICH_SCORE_CALIBRATION_RANGE_BASED = {
     **{
         camelize(k): v
         for k, v in TEST_BRNICH_SCORE_CALIBRATION_RANGE_BASED.items()
-        if k not in ("functional_classifications", "classification_sources", "threshold_sources", "method_sources")
+        if k not in ("functional_classifications", "evidence_sources", "threshold_sources", "method_sources")
     },
     "functionalClassifications": [
         TEST_SAVED_FUNCTIONAL_RANGE_NORMAL,
@@ -1617,7 +1617,7 @@ TEST_SAVED_BRNICH_SCORE_CALIBRATION_RANGE_BASED = {
         TEST_SAVED_FUNCTIONAL_RANGE_NOT_SPECIFIED,
     ],
     "thresholdSources": [SAVED_PUBMED_PUBLICATION],
-    "classificationSources": [SAVED_PUBMED_PUBLICATION, SAVED_BIORXIV_PUBLICATION],
+    "evidenceSources": [SAVED_PUBMED_PUBLICATION, SAVED_BIORXIV_PUBLICATION],
     "methodSources": [SAVED_PUBMED_PUBLICATION],
     "id": 1,
     "urn": VALID_CALIBRATION_URN,
@@ -1670,8 +1670,8 @@ TEST_PATHOGENICITY_SCORE_CALIBRATION = {
         TEST_FUNCTIONAL_RANGE_ABNORMAL,
     ],
     "threshold_sources": [{"identifier": TEST_PUBMED_IDENTIFIER, "db_name": "PubMed"}],
-    "classification_sources": [],
-    "method_sources": [],
+    "evidence_sources": [{"identifier": TEST_PUBMED_IDENTIFIER, "db_name": "PubMed"}],
+    "method_sources": [{"identifier": TEST_PUBMED_IDENTIFIER, "db_name": "PubMed"}],
     "calibration_metadata": {},
 }
 
@@ -1680,15 +1680,15 @@ TEST_SAVED_PATHOGENICITY_SCORE_CALIBRATION = {
     **{
         camelize(k): v
         for k, v in TEST_PATHOGENICITY_SCORE_CALIBRATION.items()
-        if k not in ("functional_classifications", "classification_sources", "threshold_sources", "method_sources")
+        if k not in ("functional_classifications", "evidence_sources", "threshold_sources", "method_sources")
     },
     "functionalClassifications": [
         TEST_SAVED_FUNCTIONAL_RANGE_NORMAL,
         TEST_SAVED_FUNCTIONAL_RANGE_ABNORMAL,
     ],
     "thresholdSources": [SAVED_PUBMED_PUBLICATION],
-    "classificationSources": [],
-    "methodSources": [],
+    "evidenceSources": [SAVED_PUBMED_PUBLICATION],
+    "methodSources": [SAVED_PUBMED_PUBLICATION],
     "id": 2,
     "investigatorProvided": True,
     "primary": False,

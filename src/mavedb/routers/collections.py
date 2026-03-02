@@ -318,15 +318,11 @@ async def update_collection(
 
     assert_permission(user_data, item, Action.UPDATE)
 
-    # Editors may update metadata, but not all editors can publish (which is just setting private to public).
-    if item.private and not item_update.private:
+    # Ensure users have permission to make the specific changes they are attempting to make.
+    if item_update.private is not None and item.private != item_update.private:
         assert_permission(user_data, item, Action.PUBLISH)
 
-    # Unpublishing requires the same permissions as publishing.
-    if not item.private and item_update.private:
-        assert_permission(user_data, item, Action.PUBLISH)
-
-    if item_update.badge_name:
+    if item_update.badge_name is not None and item.badge_name != item_update.badge_name:
         assert_permission(user_data, item, Action.ADD_BADGE)
 
     # Handle score_set_urns: replace-all with implicit add/remove

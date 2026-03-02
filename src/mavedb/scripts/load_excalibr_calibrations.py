@@ -234,7 +234,7 @@ def main(db: Session, csv_path: str, dataset_map: str, overwrite: bool, remove: 
                     score_set_urn=score_set.urn,
                     calibration_metadata={"prior_probability_pathogenicity": prior},
                     threshold_sources=[EXCALIBR_CALIBRATION_CITATION],
-                    classification_sources=[EXCALIBR_CALIBRATION_CITATION],
+                    evidence_sources=[EXCALIBR_CALIBRATION_CITATION],
                     method_sources=[EXCALIBR_CALIBRATION_CITATION],
                 )
 
