@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from mavedb import deps
 from mavedb.lib.authentication import get_current_user
-from mavedb.lib.authorization import require_current_user
+from mavedb.lib.authorization import require_current_user_with_email
 from mavedb.lib.flexible_model_loader import json_or_form_loader
 from mavedb.lib.logging import LoggedRoute
 from mavedb.lib.logging.context import (
@@ -29,6 +29,7 @@ from mavedb.lib.validation.constants.general import calibration_class_column_nam
 from mavedb.lib.validation.dataframe.calibration import validate_and_standardize_calibration_classes_dataframe
 from mavedb.lib.validation.exceptions import ValidationError
 from mavedb.models.score_calibration import ScoreCalibration
+from mavedb.models.score_calibration_functional_classification import ScoreCalibrationFunctionalClassification
 from mavedb.models.score_set import ScoreSet
 from mavedb.view_models import score_calibration
 
@@ -217,7 +218,7 @@ async def create_score_calibration_route(
         description=f"CSV file containing variant classifications. This file must contain two columns: '{calibration_variant_column_name}' and '{calibration_class_column_name}'.",
     ),
     db: Session = Depends(deps.get_db),
-    user_data: UserData = Depends(require_current_user),
+    user_data: UserData = Depends(require_current_user_with_email),
 ) -> ScoreCalibration:
     """
     Create a new score calibration.
@@ -260,9 +261,11 @@ async def create_score_calibration_route(
 
     ## Requirements
     - The score set URN must be provided to associate the calibration with an existing score set
-    - User must have write permission on the associated score set
+    - User must have an email address associated with their account
     - If uploading a classes_file, it must be a valid CSV with variant classification data
-
+    - User must have ADD_CALIBRATION permission on the score set (any authenticated user for
+      published sets; contributors/owners/admins for private sets)
+      
     ## File Upload Details
     The `classes_file` parameter accepts CSV files containing variant classification data.
     The file should have appropriate headers and contain columns for variant urns and class names.
@@ -280,9 +283,7 @@ async def create_score_calibration_route(
         logger.debug("ScoreSet not found", extra=logging_context())
         raise HTTPException(status_code=404, detail=f"score set with URN '{calibration.score_set_urn}' not found")
 
-    # TODO#539: Allow any authenticated user to upload a score calibration for a score set, not just those with
-    #           permission to update the score set itself.
-    assert_permission(user_data, score_set, Action.UPDATE)
+    assert_permission(user_data, score_set, Action.ADD_CALIBRATION)
 
     if calibration.class_based and not classes_file:
         raise HTTPException(
@@ -366,7 +367,7 @@ async def modify_score_calibration_route(
         description=f"CSV file containing variant classifications. This file must contain two columns: '{calibration_variant_column_name}' and '{calibration_class_column_name}'.",
     ),
     db: Session = Depends(deps.get_db),
-    user_data: UserData = Depends(require_current_user),
+    user_data: UserData = Depends(require_current_user_with_email),
 ) -> ScoreCalibration:
     """
     Modify an existing score calibration by its URN.
@@ -408,8 +409,9 @@ async def modify_score_calibration_route(
     ```
 
     ## Requirements
+    - User must have an email address associated with their account
     - User must have update permission on the calibration
-    - If changing the score_set_urn, user must have permission on the new score set
+    - If changing the score_set_urn, user must have ADD_CALIBRATION permission on the target score set
     - All fields in the update are optional - only provided fields will be modified
 
     ## File Upload Details
@@ -434,9 +436,7 @@ async def modify_score_calibration_route(
                 status_code=404, detail=f"score set with URN '{calibration_update.score_set_urn}' not found"
             )
 
-        # TODO#539: Allow any authenticated user to upload a score calibration for a score set, not just those with
-        #           permission to update the score set itself.
-        assert_permission(user_data, score_set_update, Action.UPDATE)
+        assert_permission(user_data, score_set_update, Action.ADD_CALIBRATION)
     else:
         score_set_update = None
 
@@ -504,7 +504,7 @@ async def delete_score_calibration_route(
     *,
     urn: str,
     db: Session = Depends(deps.get_db),
-    user_data: UserData = Depends(require_current_user),
+    user_data: UserData = Depends(require_current_user_with_email),
 ) -> None:
     """
     Delete an existing score calibration by its URN.
@@ -541,7 +541,7 @@ async def promote_score_calibration_to_primary_route(
         False, description="Whether to demote any existing primary calibration", alias="demoteExistingPrimary"
     ),
     db: Session = Depends(deps.get_db),
-    user_data: UserData = Depends(require_current_user),
+    user_data: UserData = Depends(require_current_user_with_email),
 ) -> ScoreCalibration:
     """
     Promote a score calibration to be the primary calibration for its associated score set.
@@ -607,7 +607,7 @@ def demote_score_calibration_from_primary_route(
     *,
     urn: str,
     db: Session = Depends(deps.get_db),
-    user_data: UserData = Depends(require_current_user),
+    user_data: UserData = Depends(require_current_user_with_email),
 ) -> ScoreCalibration:
     """
     Demote a score calibration from being the primary calibration for its associated score set.
@@ -646,7 +646,7 @@ def publish_score_calibration_route(
     *,
     urn: str,
     db: Session = Depends(deps.get_db),
-    user_data: UserData = Depends(require_current_user),
+    user_data: UserData = Depends(require_current_user_with_email),
 ) -> ScoreCalibration:
     """
     Publish a score calibration, making it publicly visible.
@@ -684,3 +684,103 @@ def publish_score_calibration_route(
     db.refresh(item)
 
     return item
+
+
+@router.get(
+    "/{urn}/functional-classifications/{classification_id}/variants",
+    response_model=score_calibration.FunctionalClassificationVariants,
+    responses={404: {}},
+)
+def get_functional_classification_variants(
+    *,
+    urn: str,
+    classification_id: int,
+    db: Session = Depends(deps.get_db),
+    user_data: Optional[UserData] = Depends(get_current_user),
+) -> score_calibration.FunctionalClassificationVariants:
+    """
+    Retrieve variants for a specific functional classification within a score calibration.
+
+    Returns the list of variants whose scores fall within the functional classification's
+    defined range or class. Use this endpoint when you need the full variant data for a
+    specific classification — the main score set and calibration endpoints return only
+    a `variant_count` summary for performance.
+    """
+    save_to_logging_context(
+        {"requested_resource": urn, "requested_classification": classification_id, "resource_property": "variants"}
+    )
+
+    calibration = (
+        db.query(ScoreCalibration)
+        .options(selectinload(ScoreCalibration.score_set).selectinload(ScoreSet.contributors))
+        .where(ScoreCalibration.urn == urn)
+        .one_or_none()
+    )
+    if not calibration:
+        logger.debug("The requested score calibration does not exist", extra=logging_context())
+        raise HTTPException(status_code=404, detail="The requested score calibration does not exist")
+
+    assert_permission(user_data, calibration, Action.READ)
+
+    functional_classification = (
+        db.query(ScoreCalibrationFunctionalClassification)
+        .options(selectinload(ScoreCalibrationFunctionalClassification.variants))
+        .filter(
+            ScoreCalibrationFunctionalClassification.id == classification_id,
+            ScoreCalibrationFunctionalClassification.calibration_id == calibration.id,
+        )
+        .one_or_none()
+    )
+    if not functional_classification:
+        logger.debug("The requested functional classification does not exist", extra=logging_context())
+        raise HTTPException(status_code=404, detail="The requested functional classification does not exist")
+
+    return score_calibration.FunctionalClassificationVariants(
+        functional_classification_id=functional_classification.id, variants=functional_classification.variants
+    )
+
+
+@router.get(
+    "/{urn}/variants",
+    response_model=list[score_calibration.FunctionalClassificationVariants],
+    responses={404: {}},
+)
+def get_calibration_all_variants(
+    *,
+    urn: str,
+    db: Session = Depends(deps.get_db),
+    user_data: Optional[UserData] = Depends(get_current_user),
+) -> list[score_calibration.FunctionalClassificationVariants]:
+    """
+    Retrieve all variants across all functional classifications for a score calibration.
+
+    Returns a list of variant sets, one per functional classification. Use this endpoint
+    when you need the full variant data for an entire calibration — the main score set and
+    calibration endpoints return only a `variant_count` summary for performance.
+    """
+    save_to_logging_context({"requested_resource": urn, "resource_property": "variants"})
+
+    calibration = (
+        db.query(ScoreCalibration)
+        .options(
+            selectinload(ScoreCalibration.score_set).selectinload(ScoreSet.contributors),
+            selectinload(ScoreCalibration.functional_classifications).selectinload(
+                ScoreCalibrationFunctionalClassification.variants
+            ),
+        )
+        .where(ScoreCalibration.urn == urn)
+        .one_or_none()
+    )
+    if not calibration:
+        logger.debug("The requested score calibration does not exist", extra=logging_context())
+        raise HTTPException(status_code=404, detail="The requested score calibration does not exist")
+
+    assert_permission(user_data, calibration, Action.READ)
+
+    results = []
+    for fc in calibration.functional_classifications:
+        results.append(
+            score_calibration.FunctionalClassificationVariants(functional_classification_id=fc.id, variants=fc.variants)
+        )
+
+    return results
