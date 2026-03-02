@@ -600,6 +600,13 @@ def get_filter_options_for_search(
     db: Session = Depends(deps.get_db),
     user_data: Optional[UserData] = Depends(get_current_user),
 ) -> Any:
+    # Disallow searches for unpublished score sets via this endpoint, consistent with the main search endpoint.
+    if search.published is False:
+        raise HTTPException(
+            status_code=422,
+            detail="Cannot search for private score sets options except in the context of the current user's data.",
+        )
+    search.published = True
     return fetch_score_set_search_filter_options(db, user_data, None, search)
 
 
