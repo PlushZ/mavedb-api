@@ -1935,8 +1935,10 @@ def test_search_private_score_sets_urn_match(session, data_provider, client, set
     experiment = create_experiment(client)
     score_set = create_seq_score_set(client, experiment["urn"], update={"title": "Score Set 1"})
     score_set = mock_worker_variant_insertion(client, session, data_provider, score_set, data_files / "scores.csv")
+    decoy = create_seq_score_set(client, experiment["urn"], update={"title": "Score Set 2"})
+    decoy = mock_worker_variant_insertion(client, session, data_provider, decoy, data_files / "scores.csv")
 
-    search_payload = {"urn": score_set["urn"]}
+    search_payload = {"text": score_set["urn"]}
     response = client.post("/api/v1/me/score-sets/search", json=search_payload)
     assert response.status_code == 200
     assert response.json()["numScoreSets"] == 1
@@ -1944,14 +1946,15 @@ def test_search_private_score_sets_urn_match(session, data_provider, client, set
     assert response.json()["scoreSets"][0]["urn"] == score_set["urn"]
 
 
-# There is space in the end of test urn. The search result returned nothing before.
 def test_search_private_score_sets_urn_with_space_match(session, data_provider, client, setup_router_db, data_files):
     experiment = create_experiment(client)
     score_set = create_seq_score_set(client, experiment["urn"], update={"title": "Score Set 1"})
     score_set = mock_worker_variant_insertion(client, session, data_provider, score_set, data_files / "scores.csv")
+    decoy = create_seq_score_set(client, experiment["urn"], update={"title": "Score Set 2"})
+    decoy = mock_worker_variant_insertion(client, session, data_provider, decoy, data_files / "scores.csv")
 
     urn_with_space = score_set["urn"] + "   "
-    search_payload = {"urn": urn_with_space}
+    search_payload = {"text": urn_with_space}
     response = client.post("/api/v1/me/score-sets/search", json=search_payload)
     assert response.status_code == 200
     assert response.json()["numScoreSets"] == 1
@@ -1989,26 +1992,29 @@ def test_search_others_private_score_sets_urn_match(session, data_provider, clie
     experiment = create_experiment(client)
     score_set = create_seq_score_set(client, experiment["urn"], update={"title": "Score Set 1"})
     score_set = mock_worker_variant_insertion(client, session, data_provider, score_set, data_files / "scores.csv")
+    decoy = create_seq_score_set(client, experiment["urn"], update={"title": "Score Set 2"})
+    decoy = mock_worker_variant_insertion(client, session, data_provider, decoy, data_files / "scores.csv")
     change_ownership(session, score_set["urn"], ScoreSetDbModel)
 
-    search_payload = {"urn": score_set["urn"]}
+    search_payload = {"text": score_set["urn"]}
     response = client.post("/api/v1/me/score-sets/search", json=search_payload)
     assert response.status_code == 200
     assert response.json()["numScoreSets"] == 0
     assert len(response.json()["scoreSets"]) == 0
 
 
-# There is space in the end of test urn. The search result returned nothing before.
 def test_search_others_private_score_sets_urn_with_space_match(
     session, data_provider, client, setup_router_db, data_files
 ):
     experiment = create_experiment(client)
     score_set = create_seq_score_set(client, experiment["urn"], update={"title": "Score Set 1"})
     score_set = mock_worker_variant_insertion(client, session, data_provider, score_set, data_files / "scores.csv")
+    decoy = create_seq_score_set(client, experiment["urn"], update={"title": "Score Set 2"})
+    decoy = mock_worker_variant_insertion(client, session, data_provider, decoy, data_files / "scores.csv")
     change_ownership(session, score_set["urn"], ScoreSetDbModel)
 
     urn_with_space = score_set["urn"] + "   "
-    search_payload = {"urn": urn_with_space}
+    search_payload = {"text": urn_with_space}
     response = client.post("/api/v1/me/score-sets/search", json=search_payload)
     assert response.status_code == 200
     assert response.json()["numScoreSets"] == 0
@@ -2131,13 +2137,16 @@ def test_search_public_score_sets_urn_with_space_match(session, data_provider, c
     experiment = create_experiment(client, {"title": "Experiment 1"})
     score_set = create_seq_score_set(client, experiment["urn"], update={"title": "Score Set 1"})
     score_set = mock_worker_variant_insertion(client, session, data_provider, score_set, data_files / "scores.csv")
+    decoy = create_seq_score_set(client, experiment["urn"], update={"title": "Score Set 2"})
+    decoy = mock_worker_variant_insertion(client, session, data_provider, decoy, data_files / "scores.csv")
 
     with patch.object(arq.ArqRedis, "enqueue_job", return_value=None) as worker_queue:
         published_score_set = publish_score_set(client, score_set["urn"])
-        worker_queue.assert_called_once()
+        publish_score_set(client, decoy["urn"])
+        assert worker_queue.call_count == 2
 
     urn_with_space = published_score_set["urn"] + "   "
-    search_payload = {"urn": urn_with_space}
+    search_payload = {"text": urn_with_space}
     response = client.post("/api/v1/score-sets/search", json=search_payload)
     assert response.status_code == 200
     assert response.json()["numScoreSets"] == 1
@@ -2187,13 +2196,16 @@ def test_search_others_public_score_sets_urn_match(session, data_provider, clien
     experiment = create_experiment(client, {"title": "Experiment 1"})
     score_set = create_seq_score_set(client, experiment["urn"], update={"title": "Score Set 1"})
     score_set = mock_worker_variant_insertion(client, session, data_provider, score_set, data_files / "scores.csv")
+    decoy = create_seq_score_set(client, experiment["urn"], update={"title": "Score Set 2"})
+    decoy = mock_worker_variant_insertion(client, session, data_provider, decoy, data_files / "scores.csv")
 
     with patch.object(arq.ArqRedis, "enqueue_job", return_value=None) as worker_queue:
         published_score_set = publish_score_set(client, score_set["urn"])
-        worker_queue.assert_called_once()
+        publish_score_set(client, decoy["urn"])
+        assert worker_queue.call_count == 2
 
     change_ownership(session, published_score_set["urn"], ScoreSetDbModel)
-    search_payload = {"urn": score_set["urn"]}
+    search_payload = {"text": published_score_set["urn"]}
     response = client.post("/api/v1/score-sets/search", json=search_payload)
     assert response.status_code == 200
     assert response.json()["numScoreSets"] == 1
@@ -2207,14 +2219,17 @@ def test_search_others_public_score_sets_urn_with_space_match(
     experiment = create_experiment(client, {"title": "Experiment 1"})
     score_set = create_seq_score_set(client, experiment["urn"], update={"title": "Score Set 1"})
     score_set = mock_worker_variant_insertion(client, session, data_provider, score_set, data_files / "scores.csv")
+    decoy = create_seq_score_set(client, experiment["urn"], update={"title": "Score Set 2"})
+    decoy = mock_worker_variant_insertion(client, session, data_provider, decoy, data_files / "scores.csv")
 
     with patch.object(arq.ArqRedis, "enqueue_job", return_value=None) as worker_queue:
         published_score_set = publish_score_set(client, score_set["urn"])
-        worker_queue.assert_called_once()
+        publish_score_set(client, decoy["urn"])
+        assert worker_queue.call_count == 2
 
     change_ownership(session, published_score_set["urn"], ScoreSetDbModel)
     urn_with_space = published_score_set["urn"] + "   "
-    search_payload = {"urn": urn_with_space}
+    search_payload = {"text": urn_with_space}
     response = client.post("/api/v1/score-sets/search", json=search_payload)
     assert response.status_code == 200
     assert response.json()["numScoreSets"] == 1
