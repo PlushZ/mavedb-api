@@ -292,7 +292,7 @@ def search_score_sets(db: Session, owner_or_contributor: Optional[User], search:
         # query.
         score_sets = score_sets[: search.limit]
         count_query = db.query(ScoreSet)
-        build_search_score_sets_query_filter(db, count_query, owner_or_contributor, search)
+        count_query = build_search_score_sets_query_filter(db, count_query, owner_or_contributor, search)
         num_score_sets = count_query.order_by(None).limit(None).count()
 
     save_to_logging_context({"matching_resources": num_score_sets})
