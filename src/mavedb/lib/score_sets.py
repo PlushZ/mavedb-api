@@ -238,18 +238,26 @@ def search_score_sets(db: Session, owner_or_contributor: Optional[User], search:
     score_sets: list[ScoreSet] = (
         query.join(ScoreSet.experiment)
         .options(
+            # Use selectinload for one-to-many experiment relationships to avoid row
+            # multiplication in the main query. joinedload would LEFT OUTER JOIN these
+            # into the main SQL query, and because they're nested inside contains_eager,
+            # SQLAlchemy's subquery-wrapping logic doesn't protect the LIMIT clause from
+            # being applied to multiplied rows rather than unique score sets. This would
+            # cause the count of returned score sets to be less than the requested limit,
+            # and the count query would be triggered even when the number of unique score
+            # sets in the main query results exceeds the limit.
             contains_eager(ScoreSet.experiment).options(
                 joinedload(Experiment.experiment_set),
-                joinedload(Experiment.keyword_objs).joinedload(
+                selectinload(Experiment.keyword_objs).joinedload(
                     ExperimentControlledKeywordAssociation.controlled_keyword
                 ),
                 joinedload(Experiment.created_by),
                 joinedload(Experiment.modified_by),
-                joinedload(Experiment.doi_identifiers),
-                joinedload(Experiment.publication_identifier_associations).joinedload(
+                selectinload(Experiment.doi_identifiers),
+                selectinload(Experiment.publication_identifier_associations).joinedload(
                     ExperimentPublicationIdentifierAssociation.publication
                 ),
-                joinedload(Experiment.raw_read_identifiers),
+                selectinload(Experiment.raw_read_identifiers),
                 selectinload(Experiment.score_sets).options(
                     joinedload(ScoreSet.doi_identifiers),
                     joinedload(ScoreSet.publication_identifier_associations).joinedload(
@@ -292,7 +300,7 @@ def search_score_sets(db: Session, owner_or_contributor: Optional[User], search:
         # query.
         score_sets = score_sets[: search.limit]
         count_query = db.query(ScoreSet)
-        build_search_score_sets_query_filter(db, count_query, owner_or_contributor, search)
+        count_query = build_search_score_sets_query_filter(db, count_query, owner_or_contributor, search)
         num_score_sets = count_query.order_by(None).limit(None).count()
 
     save_to_logging_context({"matching_resources": num_score_sets})

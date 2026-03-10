@@ -38,6 +38,7 @@ from tests.helpers.constants import (
     TEST_BRNICH_SCORE_CALIBRATION_CLASS_BASED,
     TEST_BRNICH_SCORE_CALIBRATION_RANGE_BASED,
     TEST_CROSSREF_IDENTIFIER,
+    TEST_EXPERIMENT_WITH_KEYWORD,
     TEST_GNOMAD_DATA_VERSION,
     TEST_INACTIVE_LICENSE,
     TEST_MAPPED_VARIANT_WITH_HGVS_G_EXPRESSION,
@@ -2401,6 +2402,51 @@ def test_search_filter_options_hidden_by_published_superseding_version(
     assert response.status_code == 200
     target_names = [opt["value"] for opt in response.json()["targetGeneNames"]]
     assert target_name not in target_names
+
+
+def test_search_score_sets_reports_correct_total_count_with_limit(
+    session, data_provider, client, setup_router_db, data_files
+):
+    """When more published score sets exist than the search limit, num_score_sets should reflect the true total."""
+    num_score_sets = 3
+    for i in range(num_score_sets):
+        experiment = create_experiment(client, {"title": f"Experiment {i}"})
+        score_set = create_seq_score_set(client, experiment["urn"], update={"title": f"Score Set {i}"})
+        score_set = mock_worker_variant_insertion(client, session, data_provider, score_set, data_files / "scores.csv")
+
+        with patch.object(arq.ArqRedis, "enqueue_job", return_value=None):
+            publish_score_set(client, score_set["urn"])
+
+    search_payload = {"limit": 2}
+    response = client.post("/api/v1/score-sets/search", json=search_payload)
+    assert response.status_code == 200
+    assert len(response.json()["scoreSets"]) == 2
+    assert response.json()["numScoreSets"] == num_score_sets
+
+
+def test_search_score_sets_not_affected_by_experiment_metadata(
+    session, data_provider, client, setup_router_db, data_files
+):
+    """Experiments with multiple keywords should not reduce the number of score sets returned by search.
+
+    This is a regression test for a bug where joinedload on one-to-many experiment relationships caused row
+    multiplication in the main SQL query. The LIMIT clause was applied to the multiplied rows rather than unique
+    score sets, resulting in fewer results than expected.
+    """
+    num_score_sets = 3
+    for i in range(num_score_sets):
+        experiment = create_experiment(client, {**TEST_EXPERIMENT_WITH_KEYWORD, "title": f"Experiment {i}"})
+        score_set = create_seq_score_set(client, experiment["urn"], update={"title": f"Score Set {i}"})
+        score_set = mock_worker_variant_insertion(client, session, data_provider, score_set, data_files / "scores.csv")
+
+        with patch.object(arq.ArqRedis, "enqueue_job", return_value=None):
+            publish_score_set(client, score_set["urn"])
+
+    search_payload = {"limit": 2}
+    response = client.post("/api/v1/score-sets/search", json=search_payload)
+    assert response.status_code == 200
+    assert len(response.json()["scoreSets"]) == 2
+    assert response.json()["numScoreSets"] == num_score_sets
 
 
 ########################################################################################################################
