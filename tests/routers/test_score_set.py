@@ -713,6 +713,56 @@ def test_get_own_private_score_set(client, setup_router_db):
         assert (key, expected_response[key]) == (key, response_data[key])
 
 
+def test_get_score_sets_by_comma_separated_urns(client, setup_router_db):
+    experiment = create_experiment(client)
+    first_score_set = create_seq_score_set(client, experiment["urn"])
+    second_score_set = create_seq_score_set(client, experiment["urn"])
+
+    response = client.get(
+        "/api/v1/score-sets/",
+        params={"urns": f"{first_score_set['urn']}, {second_score_set['urn']}"},
+    )
+    assert response.status_code == 200
+
+    response_data = response.json()
+    assert [item["urn"] for item in response_data] == [first_score_set["urn"], second_score_set["urn"]]
+
+    for item in response_data:
+        jsonschema.validate(instance=item, schema=ScoreSet.model_json_schema())
+
+
+def test_get_score_sets_requires_at_least_one_urn(client, setup_router_db):
+    response = client.get("/api/v1/score-sets/", params={"urns": " , "})
+    assert response.status_code == 422
+    assert response.json()["detail"] == "At least one URN is required"
+
+
+def test_get_score_sets_with_mixed_valid_and_invalid_urns_returns_404(client, setup_router_db):
+    experiment = create_experiment(client)
+    score_set = create_seq_score_set(client, experiment["urn"])
+    missing_urn = "urn:mavedb:99999999-z-9"
+
+    response = client.get(
+        "/api/v1/score-sets/",
+        params={"urns": f"{score_set['urn']},{missing_urn}"},
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == f"score set with URN '{missing_urn}' not found"
+
+
+def test_get_score_sets_with_whitespace_around_urns_in_mixed_list_returns_404(client, setup_router_db):
+    experiment = create_experiment(client)
+    score_set = create_seq_score_set(client, experiment["urn"])
+    missing_urn = "urn:mavedb:99999999-z-9"
+
+    response = client.get(
+        "/api/v1/score-sets/",
+        params={"urns": f"  {score_set['urn']}  ,   {missing_urn}   "},
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == f"score set with URN '{missing_urn}' not found"
+
+
 def test_cannot_get_other_user_private_score_set(session, client, setup_router_db):
     experiment = create_experiment(client)
     score_set = create_seq_score_set(client, experiment["urn"])
