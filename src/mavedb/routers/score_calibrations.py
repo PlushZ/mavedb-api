@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from mavedb import deps
 from mavedb.lib.authentication import get_current_user
-from mavedb.lib.authorization import require_current_user_with_email
+from mavedb.lib.authorization import require_current_user, require_current_user_with_email
 from mavedb.lib.flexible_model_loader import json_or_form_loader
 from mavedb.lib.logging import LoggedRoute
 from mavedb.lib.logging.context import (
@@ -52,6 +52,27 @@ calibration_modify_loader = json_or_form_loader(
     score_calibration.ScoreCalibrationModify,
     field_name="calibration_json",
 )
+
+
+@router.get(
+    "/me",
+    status_code=200,
+    response_model=list[score_calibration.ScoreCalibrationWithScoreSetUrn],
+    responses={401: {}, 403: {}},
+    summary="List my calibrations",
+)
+def list_my_calibrations(
+    *,
+    db: Session = Depends(deps.get_db),
+    user_data: UserData = Depends(require_current_user),
+) -> list[ScoreCalibration]:
+    """List all score calibrations created by the current user."""
+    return (
+        db.query(ScoreCalibration)
+        .filter(ScoreCalibration.created_by_id == user_data.user.id)
+        .options(selectinload(ScoreCalibration.score_set).selectinload(ScoreSet.contributors))
+        .all()
+    )
 
 
 @router.get(
