@@ -1456,13 +1456,19 @@ def test_recently_published_does_not_return_unpublished_score_sets(client, setup
 
 def test_recently_published_respects_limit_parameter(session, data_provider, client, setup_router_db, data_files):
     experiment = create_experiment(client)
-    published_urns = []
+    # Create and upload variants for all score sets before publishing any, because publishing
+    # changes the experiment URN from a tmp URN to a permanent URN.
+    score_sets = []
     for _ in range(3):
         score_set = create_seq_score_set(client, experiment["urn"])
         score_set = mock_worker_variant_insertion(client, session, data_provider, score_set, data_files / "scores.csv")
-        with patch.object(arq.ArqRedis, "enqueue_job", return_value=None):
+        score_sets.append(score_set)
+
+    published_urns = []
+    with patch.object(arq.ArqRedis, "enqueue_job", return_value=None):
+        for score_set in score_sets:
             published = publish_score_set(client, score_set["urn"])
-        published_urns.append(published["urn"])
+            published_urns.append(published["urn"])
 
     response = client.get("/api/v1/score-sets/recently-published?limit=2")
     assert response.status_code == 200
