@@ -31,6 +31,7 @@ from mavedb.lib.validation.exceptions import ValidationError
 from mavedb.models.score_calibration import ScoreCalibration
 from mavedb.models.score_calibration_functional_classification import ScoreCalibrationFunctionalClassification
 from mavedb.models.score_set import ScoreSet
+from mavedb.routers.shared import ACCESS_CONTROL_ERROR_RESPONSES, PUBLIC_ERROR_RESPONSES
 from mavedb.view_models import score_calibration
 
 logger = logging.getLogger(__name__)
@@ -38,7 +39,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(
     prefix="/api/v1/score-calibrations",
     tags=["Score Calibrations"],
-    responses={404: {"description": "Not found"}},
+    responses={**PUBLIC_ERROR_RESPONSES},
     route_class=LoggedRoute,
 )
 
@@ -58,7 +59,7 @@ calibration_modify_loader = json_or_form_loader(
     "/me",
     status_code=200,
     response_model=list[score_calibration.ScoreCalibrationWithScoreSetUrn],
-    responses={401: {}, 403: {}},
+    responses={**ACCESS_CONTROL_ERROR_RESPONSES},
     summary="List my calibrations",
 )
 def list_my_calibrations(
