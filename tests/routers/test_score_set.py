@@ -1559,6 +1559,96 @@ def test_cannot_publish_score_set_without_variants(client, setup_router_db):
     assert "cannot publish score set without variant scores" in response_data["detail"]
 
 
+########################################################################################################################
+# Recently published score sets
+########################################################################################################################
+
+
+def test_recently_published_returns_empty_list_when_no_score_sets_published(client, setup_router_db):
+    response = client.get("/api/v1/score-sets/recently-published")
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_recently_published_returns_published_score_sets(session, data_provider, client, setup_router_db, data_files):
+    experiment = create_experiment(client)
+    score_set_1 = create_seq_score_set(client, experiment["urn"])
+    score_set_1 = mock_worker_variant_insertion(client, session, data_provider, score_set_1, data_files / "scores.csv")
+    score_set_2 = create_seq_score_set(client, experiment["urn"])
+    score_set_2 = mock_worker_variant_insertion(client, session, data_provider, score_set_2, data_files / "scores.csv")
+
+    with patch.object(arq.ArqRedis, "enqueue_job", return_value=None):
+        published_1 = publish_score_set(client, score_set_1["urn"])
+        published_2 = publish_score_set(client, score_set_2["urn"])
+
+    response = client.get("/api/v1/score-sets/recently-published")
+    assert response.status_code == 200
+    response_data = response.json()
+
+    returned_urns = [ss["urn"] for ss in response_data]
+    assert published_1["urn"] in returned_urns
+    assert published_2["urn"] in returned_urns
+
+
+def test_recently_published_does_not_return_unpublished_score_sets(client, setup_router_db):
+    experiment = create_experiment(client)
+    create_seq_score_set(client, experiment["urn"])
+
+    response = client.get("/api/v1/score-sets/recently-published")
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_recently_published_respects_limit_parameter(session, data_provider, client, setup_router_db, data_files):
+    experiment = create_experiment(client)
+    # Create and upload variants for all score sets before publishing any, because publishing
+    # changes the experiment URN from a tmp URN to a permanent URN.
+    score_sets = []
+    for _ in range(3):
+        score_set = create_seq_score_set(client, experiment["urn"])
+        score_set = mock_worker_variant_insertion(client, session, data_provider, score_set, data_files / "scores.csv")
+        score_sets.append(score_set)
+
+    published_urns = []
+    with patch.object(arq.ArqRedis, "enqueue_job", return_value=None):
+        for score_set in score_sets:
+            published = publish_score_set(client, score_set["urn"])
+            published_urns.append(published["urn"])
+
+    response = client.get("/api/v1/score-sets/recently-published?limit=2")
+    assert response.status_code == 200
+    response_data = response.json()
+    assert len(response_data) == 2
+
+
+def test_recently_published_rejects_limit_exceeding_maximum(client, setup_router_db):
+    response = client.get("/api/v1/score-sets/recently-published?limit=21")
+    assert response.status_code == 422
+
+
+def test_recently_published_rejects_limit_of_zero(client, setup_router_db):
+    response = client.get("/api/v1/score-sets/recently-published?limit=0")
+    assert response.status_code == 422
+
+
+def test_recently_published_accessible_to_anonymous_user(
+    session, data_provider, client, setup_router_db, data_files, anonymous_app_overrides
+):
+    experiment = create_experiment(client)
+    score_set = create_seq_score_set(client, experiment["urn"])
+    score_set = mock_worker_variant_insertion(client, session, data_provider, score_set, data_files / "scores.csv")
+
+    with patch.object(arq.ArqRedis, "enqueue_job", return_value=None):
+        published = publish_score_set(client, score_set["urn"])
+
+    with DependencyOverrider(anonymous_app_overrides):
+        response = client.get("/api/v1/score-sets/recently-published")
+
+    assert response.status_code == 200
+    returned_urns = [ss["urn"] for ss in response.json()]
+    assert published["urn"] in returned_urns
+
+
 def test_cannot_publish_other_user_private_score_set(session, data_provider, client, setup_router_db, data_files):
     experiment = create_experiment(client)
     score_set = create_seq_score_set(client, experiment["urn"])
