@@ -202,8 +202,9 @@ def get_experiment_score_sets(
     filtered_score_sets: list[ScoreSet] = []
     for ss in score_set_result:
         tail = find_superseded_score_set_tail(ss, Action.READ, user_data)
-        if tail is not None and tail.id not in seen_ids:
-            seen_ids.add(tail.id)
+        tail_id = tail.id if tail is not None else None
+        if tail is not None and tail_id is not None and tail_id not in seen_ids:
+            seen_ids.add(tail_id)
             filtered_score_sets.append(tail)
 
     if not filtered_score_sets:
