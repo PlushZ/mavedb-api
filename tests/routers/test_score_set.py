@@ -735,39 +735,6 @@ def test_anonymous_user_cannot_get_user_private_score_set(session, client, setup
     assert f"score set with URN '{score_set['urn']}' not found" in response_data["detail"]
 
 
-def test_can_add_contributor_in_both_experiment_and_score_set(session, client, setup_router_db):
-    experiment = create_experiment(client)
-    score_set = create_seq_score_set(client, experiment["urn"])
-    change_ownership(session, score_set["urn"], ScoreSetDbModel)
-    change_ownership(session, experiment["urn"], ExperimentDbModel)
-    add_contributor(
-        session,
-        score_set["urn"],
-        ScoreSetDbModel,
-        TEST_USER["username"],
-        TEST_USER["first_name"],
-        TEST_USER["last_name"],
-    )
-    add_contributor(
-        session,
-        experiment["urn"],
-        ExperimentDbModel,
-        TEST_USER["username"],
-        TEST_USER["first_name"],
-        TEST_USER["last_name"],
-    )
-    score_set_response = client.get(f"/api/v1/score-sets/{score_set['urn']}")
-    assert score_set_response.status_code == 200
-    ss_response_data = score_set_response.json()
-    assert len(ss_response_data["contributors"]) == 1
-    assert any(c["orcidId"] == TEST_USER["username"] for c in ss_response_data["contributors"])
-    experiment_response = client.get(f"/api/v1/experiments/{experiment['urn']}")
-    assert experiment_response.status_code == 200
-    exp_response_data = experiment_response.json()
-    assert len(exp_response_data["contributors"]) == 1
-    assert any(c["orcidId"] == TEST_USER["username"] for c in exp_response_data["contributors"])
-
-
 def test_contributor_can_get_other_users_private_score_set(session, client, setup_router_db):
     experiment = create_experiment(client)
     score_set = create_seq_score_set(client, experiment["urn"])
@@ -830,6 +797,184 @@ def test_admin_can_get_other_user_private_score_set(session, client, admin_app_o
     assert sorted(expected_response.keys()) == sorted(response_data.keys())
     for key in expected_response:
         assert (key, expected_response[key]) == (key, response_data[key])
+
+
+########################################################################################################################
+# Multiple score set fetching
+########################################################################################################################
+
+
+def test_get_score_sets_by_comma_separated_urns(client, setup_router_db):
+    experiment = create_experiment(client)
+    first_score_set = create_seq_score_set(client, experiment["urn"])
+    second_score_set = create_seq_score_set(client, experiment["urn"])
+
+    response = client.get(
+        "/api/v1/score-sets/",
+        params={"urns": f"{first_score_set['urn']}, {second_score_set['urn']}"},
+    )
+    assert response.status_code == 200
+
+    response_data = response.json()
+    assert [item["urn"] for item in response_data] == [first_score_set["urn"], second_score_set["urn"]]
+
+    for item in response_data:
+        jsonschema.validate(instance=item, schema=ScoreSet.model_json_schema())
+
+
+def test_get_score_sets_requires_at_least_one_urn(client, setup_router_db):
+    response = client.get("/api/v1/score-sets/", params={"urns": " , "})
+    assert response.status_code == 422
+    assert response.json()["detail"] == "At least one URN is required"
+
+
+def test_get_score_sets_with_mixed_valid_and_invalid_urns_returns_404(client, setup_router_db):
+    experiment = create_experiment(client)
+    score_set = create_seq_score_set(client, experiment["urn"])
+    missing_urn = "urn:mavedb:99999999-z-9"
+
+    response = client.get(
+        "/api/v1/score-sets/",
+        params={"urns": f"{score_set['urn']},{missing_urn}"},
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == f"score set with URN '{missing_urn}' not found"
+
+
+def test_get_score_sets_with_whitespace_around_urns_in_mixed_list_returns_404(client, setup_router_db):
+    experiment = create_experiment(client)
+    score_set = create_seq_score_set(client, experiment["urn"])
+    missing_urn = "urn:mavedb:99999999-z-9"
+
+    response = client.get(
+        "/api/v1/score-sets/",
+        params={"urns": f"  {score_set['urn']}  ,   {missing_urn}   "},
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == f"score set with URN '{missing_urn}' not found"
+
+
+def test_show_score_sets_anonymous_can_fetch_public_score_sets(
+    session, client, setup_router_db, anonymous_app_overrides, data_provider, data_files
+):
+    experiment = create_experiment(client)
+    score_set = create_seq_score_set(client, experiment["urn"])
+    score_set = mock_worker_variant_insertion(client, session, data_provider, score_set, data_files / "scores.csv")
+    with patch.object(arq.ArqRedis, "enqueue_job", return_value=None):
+        published_score_set = publish_score_set(client, score_set["urn"])
+
+    with DependencyOverrider(anonymous_app_overrides):
+        response = client.get(
+            "/api/v1/score-sets/",
+            params={"urns": published_score_set["urn"]},
+        )
+
+    assert response.status_code == 200
+    response_data = response.json()
+    assert len(response_data) == 1
+    assert response_data[0]["urn"] == published_score_set["urn"]
+
+
+def test_show_score_sets_anonymous_cannot_fetch_private_score_sets(session, client, setup_router_db, anonymous_app_overrides):
+    experiment = create_experiment(client)
+    score_set = create_seq_score_set(client, experiment["urn"])
+    # Score set is private (not published); change ownership so it belongs to another user
+    change_ownership(session, score_set["urn"], ScoreSetDbModel)
+
+    with DependencyOverrider(anonymous_app_overrides):
+        response = client.get(
+            "/api/v1/score-sets/",
+            params={"urns": score_set["urn"]},
+        )
+
+    assert response.status_code == 404
+    assert f"score set with URN '{score_set['urn']}' not found" in response.json()["detail"]
+
+
+def test_show_score_sets_authenticated_user_can_fetch_own_private_score_sets(client, setup_router_db):
+    experiment = create_experiment(client)
+    score_set = create_seq_score_set(client, experiment["urn"])
+
+    response = client.get(
+        "/api/v1/score-sets/",
+        params={"urns": score_set["urn"]},
+    )
+
+    assert response.status_code == 200
+    response_data = response.json()
+    assert len(response_data) == 1
+    assert response_data[0]["urn"] == score_set["urn"]
+
+
+def test_show_score_sets_authenticated_user_cannot_fetch_other_users_private_score_sets(
+    session, client, setup_router_db
+):
+    experiment = create_experiment(client)
+    score_set = create_seq_score_set(client, experiment["urn"])
+    change_ownership(session, score_set["urn"], ScoreSetDbModel)
+
+    response = client.get(
+        "/api/v1/score-sets/",
+        params={"urns": score_set["urn"]},
+    )
+
+    assert response.status_code == 404
+    assert f"score set with URN '{score_set['urn']}' not found" in response.json()["detail"]
+
+
+def test_show_score_sets_mixed_public_and_private_returns_404(
+    session, client, setup_router_db, anonymous_app_overrides, data_provider, data_files
+):
+    experiment = create_experiment(client)
+    public_score_set = create_seq_score_set(client, experiment["urn"])
+    public_score_set = mock_worker_variant_insertion(client, session, data_provider, public_score_set, data_files / "scores.csv")
+    private_score_set = create_seq_score_set(client, experiment["urn"])
+    with patch.object(arq.ArqRedis, "enqueue_job", return_value=None):
+        published_score_set = publish_score_set(client, public_score_set["urn"])
+    # Make private_score_set belong to a different user to make it inaccessible anonymously
+    change_ownership(session, private_score_set["urn"], ScoreSetDbModel)
+
+    with DependencyOverrider(anonymous_app_overrides):
+        response = client.get(
+            "/api/v1/score-sets/",
+            params={"urns": f"{published_score_set['urn']},{private_score_set['urn']}"},
+        )
+
+    assert response.status_code == 404
+    assert f"score set with URN '{private_score_set['urn']}' not found" in response.json()["detail"]
+
+
+def test_can_add_contributor_in_both_experiment_and_score_set(session, client, setup_router_db):
+    experiment = create_experiment(client)
+    score_set = create_seq_score_set(client, experiment["urn"])
+    change_ownership(session, score_set["urn"], ScoreSetDbModel)
+    change_ownership(session, experiment["urn"], ExperimentDbModel)
+    add_contributor(
+        session,
+        score_set["urn"],
+        ScoreSetDbModel,
+        TEST_USER["username"],
+        TEST_USER["first_name"],
+        TEST_USER["last_name"],
+    )
+    add_contributor(
+        session,
+        experiment["urn"],
+        ExperimentDbModel,
+        TEST_USER["username"],
+        TEST_USER["first_name"],
+        TEST_USER["last_name"],
+    )
+    score_set_response = client.get(f"/api/v1/score-sets/{score_set['urn']}")
+    assert score_set_response.status_code == 200
+    ss_response_data = score_set_response.json()
+    assert len(ss_response_data["contributors"]) == 1
+    assert any(c["orcidId"] == TEST_USER["username"] for c in ss_response_data["contributors"])
+    experiment_response = client.get(f"/api/v1/experiments/{experiment['urn']}")
+    assert experiment_response.status_code == 200
+    exp_response_data = experiment_response.json()
+    assert len(exp_response_data["contributors"]) == 1
+    assert any(c["orcidId"] == TEST_USER["username"] for c in exp_response_data["contributors"])
 
 
 @pytest.mark.parametrize(
