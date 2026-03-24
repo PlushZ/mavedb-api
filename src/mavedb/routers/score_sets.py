@@ -672,6 +672,86 @@ def search_my_score_sets(
     return {"score_sets": enriched_score_sets, "num_score_sets": num_score_sets}
 
 
+RECENTLY_PUBLISHED_SCORE_SETS_MAX_LIMIT = 20
+
+
+@router.get(
+    "/score-sets/recently-published",
+    status_code=200,
+    response_model=list[score_set.ScoreSet],
+    response_model_exclude_none=True,
+    summary="List recently published score sets",
+)
+def list_recently_published_score_sets(
+    limit: int = Query(
+        default=10,
+        ge=1,
+        le=RECENTLY_PUBLISHED_SCORE_SETS_MAX_LIMIT,
+        description=f"Number of score sets to return (maximum {RECENTLY_PUBLISHED_SCORE_SETS_MAX_LIMIT}).",
+    ),
+    db: Session = Depends(deps.get_db),
+    user_data: Optional[UserData] = Depends(get_current_user),
+) -> Any:
+    """
+    Return the most recently published score sets, ordered by publication date descending.
+    """
+    save_to_logging_context({"requested_resource": "recently-published", "limit": limit})
+
+    items = (
+        db.query(ScoreSet)
+        .filter(ScoreSet.published_date.isnot(None), ScoreSet.private.is_(False))
+        .order_by(ScoreSet.published_date.desc(), ScoreSet.urn.desc())
+        .limit(limit)
+        .all()
+    )
+
+    result = []
+    for item in items:
+        if not has_permission(user_data, item, Action.READ).permitted:
+            continue
+        if (
+            item.superseding_score_set
+            and not has_permission(user_data, item.superseding_score_set, Action.READ).permitted
+        ):
+            item.superseding_score_set = None
+        enriched_experiment = enrich_experiment_with_num_score_sets(item.experiment, user_data)
+        result.append(score_set.ScoreSet.model_validate(item).copy(update={"experiment": enriched_experiment}))
+
+    return result
+
+
+@router.get(
+    "/score-sets/",
+    status_code=200,
+    response_model=list[score_set.ScoreSet],
+    responses={**ACCESS_CONTROL_ERROR_RESPONSES},
+    response_model_exclude_none=True,
+    summary="Fetch score sets by URN list",
+)
+async def show_score_sets(
+    *,
+    urns: str = Query(..., description="Comma-separated list of score set URNs"),
+    db: Session = Depends(deps.get_db),
+    user_data: UserData = Depends(get_current_user),
+) -> Any:
+    """
+    Fetch score sets identified by a list of URNs.
+    """
+    urn_list = [urn.strip() for urn in urns.split(",") if urn.strip()]
+    if not urn_list:
+        raise HTTPException(status_code=422, detail="At least one URN is required")
+
+    save_to_logging_context({"requested_resource": urn_list})
+    response_items: list[score_set.ScoreSet] = []
+    for urn in urn_list:
+        item = await fetch_score_set_by_urn(db, urn, user_data, None, False)
+        enriched_experiment = enrich_experiment_with_num_score_sets(item.experiment, user_data)
+        response_item = score_set.ScoreSet.model_validate(item).copy(update={"experiment": enriched_experiment})
+        response_items.append(response_item)
+
+    return response_items
+
+
 @router.get(
     "/score-sets/{urn}",
     status_code=200,

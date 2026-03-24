@@ -238,18 +238,27 @@ def search_score_sets(db: Session, owner_or_contributor: Optional[User], search:
     score_sets: list[ScoreSet] = (
         query.join(ScoreSet.experiment)
         .options(
+            # Use selectinload for ALL relationships loaded via the main query. The presence of
+            # contains_eager disables SQLAlchemy's subquery-wrapping logic for the ENTIRE query,
+            # not just the relationships nested inside it. This means any joinedload that adds a
+            # LEFT OUTER JOIN to the main SQL query — even for many-to-one relationships — can
+            # corrupt the LIMIT clause by applying it to joined rows rather than unique score sets,
+            # causing fewer results than expected and suppressing the count query fallback.
+            # The only JOINs that should remain in the main query are the explicit experiment
+            # INNER JOIN (required by contains_eager) and the superseding score set LEFT OUTER JOIN
+            # added by the filter builder.
             contains_eager(ScoreSet.experiment).options(
-                joinedload(Experiment.experiment_set),
-                joinedload(Experiment.keyword_objs).joinedload(
+                selectinload(Experiment.experiment_set),
+                selectinload(Experiment.keyword_objs).joinedload(
                     ExperimentControlledKeywordAssociation.controlled_keyword
                 ),
-                joinedload(Experiment.created_by),
-                joinedload(Experiment.modified_by),
-                joinedload(Experiment.doi_identifiers),
-                joinedload(Experiment.publication_identifier_associations).joinedload(
+                selectinload(Experiment.created_by),
+                selectinload(Experiment.modified_by),
+                selectinload(Experiment.doi_identifiers),
+                selectinload(Experiment.publication_identifier_associations).joinedload(
                     ExperimentPublicationIdentifierAssociation.publication
                 ),
-                joinedload(Experiment.raw_read_identifiers),
+                selectinload(Experiment.raw_read_identifiers),
                 selectinload(Experiment.score_sets).options(
                     joinedload(ScoreSet.doi_identifiers),
                     joinedload(ScoreSet.publication_identifier_associations).joinedload(
@@ -264,12 +273,12 @@ def search_score_sets(db: Session, owner_or_contributor: Optional[User], search:
                     ),
                 ),
             ),
-            joinedload(ScoreSet.license),
-            joinedload(ScoreSet.doi_identifiers),
-            joinedload(ScoreSet.publication_identifier_associations).joinedload(
+            selectinload(ScoreSet.license),
+            selectinload(ScoreSet.doi_identifiers),
+            selectinload(ScoreSet.publication_identifier_associations).joinedload(
                 ScoreSetPublicationIdentifierAssociation.publication
             ),
-            joinedload(ScoreSet.target_genes).options(
+            selectinload(ScoreSet.target_genes).options(
                 joinedload(TargetGene.ensembl_offset).joinedload(EnsemblOffset.identifier),
                 joinedload(TargetGene.refseq_offset).joinedload(RefseqOffset.identifier),
                 joinedload(TargetGene.uniprot_offset).joinedload(UniprotOffset.identifier),
@@ -292,7 +301,7 @@ def search_score_sets(db: Session, owner_or_contributor: Optional[User], search:
         # query.
         score_sets = score_sets[: search.limit]
         count_query = db.query(ScoreSet)
-        build_search_score_sets_query_filter(db, count_query, owner_or_contributor, search)
+        count_query = build_search_score_sets_query_filter(db, count_query, owner_or_contributor, search)
         num_score_sets = count_query.order_by(None).limit(None).count()
 
     save_to_logging_context({"matching_resources": num_score_sets})

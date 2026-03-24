@@ -4884,3 +4884,133 @@ def test_cannot_create_score_calibration_without_email(
 
     assert response.status_code == 403
     assert "email" in response.json()["detail"].lower()
+
+
+###########################################################
+# GET /score-calibrations/me
+###########################################################
+
+
+def test_anonymous_user_cannot_list_my_calibrations(client, setup_router_db, anonymous_app_overrides):
+    with DependencyOverrider(anonymous_app_overrides):
+        response = client.get("/api/v1/score-calibrations/me")
+
+    assert response.status_code == 401
+
+
+def test_authenticated_user_with_no_calibrations_returns_empty_list(client, setup_router_db):
+    response = client.get("/api/v1/score-calibrations/me")
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+@pytest.mark.parametrize(
+    "mock_publication_fetch",
+    [
+        [
+            {"dbName": "PubMed", "identifier": TEST_PUBMED_IDENTIFIER},
+            {"dbName": "bioRxiv", "identifier": TEST_BIORXIV_IDENTIFIER},
+        ]
+    ],
+    indirect=["mock_publication_fetch"],
+)
+def test_authenticated_user_sees_own_calibrations(
+    client, setup_router_db, mock_publication_fetch, session, data_provider, data_files
+):
+    experiment = create_experiment(client)
+    score_set = create_seq_score_set_with_mapped_variants(
+        client,
+        session,
+        data_provider,
+        experiment["urn"],
+        data_files / "scores.csv",
+    )
+    calibration = create_test_score_calibration_in_score_set_via_client(
+        client, score_set["urn"], deepcamelize(TEST_BRNICH_SCORE_CALIBRATION_RANGE_BASED)
+    )
+
+    response = client.get("/api/v1/score-calibrations/me")
+
+    assert response.status_code == 200
+    calibrations = response.json()
+    assert len(calibrations) == 1
+    assert calibrations[0]["urn"] == calibration["urn"]
+    assert calibrations[0]["scoreSetUrn"] == score_set["urn"]
+
+
+@pytest.mark.parametrize(
+    "mock_publication_fetch",
+    [
+        [
+            {"dbName": "PubMed", "identifier": TEST_PUBMED_IDENTIFIER},
+            {"dbName": "bioRxiv", "identifier": TEST_BIORXIV_IDENTIFIER},
+        ]
+    ],
+    indirect=["mock_publication_fetch"],
+)
+def test_user_does_not_see_other_users_calibrations(
+    client, setup_router_db, mock_publication_fetch, session, data_provider, data_files, extra_user_app_overrides
+):
+    experiment = create_experiment(client)
+    score_set = create_seq_score_set_with_mapped_variants(
+        client,
+        session,
+        data_provider,
+        experiment["urn"],
+        data_files / "scores.csv",
+    )
+    create_test_score_calibration_in_score_set_via_client(
+        client, score_set["urn"], deepcamelize(TEST_BRNICH_SCORE_CALIBRATION_RANGE_BASED)
+    )
+
+    with DependencyOverrider(extra_user_app_overrides):
+        response = client.get("/api/v1/score-calibrations/me")
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+@pytest.mark.parametrize(
+    "mock_publication_fetch",
+    [
+        [
+            {"dbName": "PubMed", "identifier": TEST_PUBMED_IDENTIFIER},
+            {"dbName": "bioRxiv", "identifier": TEST_BIORXIV_IDENTIFIER},
+        ]
+    ],
+    indirect=["mock_publication_fetch"],
+)
+def test_user_sees_calibrations_across_multiple_score_sets(
+    client, setup_router_db, mock_publication_fetch, session, data_provider, data_files
+):
+    experiment = create_experiment(client)
+    score_set_1 = create_seq_score_set_with_mapped_variants(
+        client,
+        session,
+        data_provider,
+        experiment["urn"],
+        data_files / "scores.csv",
+    )
+    score_set_2 = create_seq_score_set_with_mapped_variants(
+        client,
+        session,
+        data_provider,
+        experiment["urn"],
+        data_files / "scores.csv",
+    )
+    cal_1 = create_test_score_calibration_in_score_set_via_client(
+        client, score_set_1["urn"], deepcamelize(TEST_BRNICH_SCORE_CALIBRATION_RANGE_BASED)
+    )
+    cal_2 = create_test_score_calibration_in_score_set_via_client(
+        client, score_set_2["urn"], deepcamelize(TEST_BRNICH_SCORE_CALIBRATION_RANGE_BASED)
+    )
+
+    response = client.get("/api/v1/score-calibrations/me")
+
+    assert response.status_code == 200
+    calibrations = response.json()
+    assert len(calibrations) == 2
+    returned_urns = {c["urn"] for c in calibrations}
+    assert cal_1["urn"] in returned_urns
+    assert cal_2["urn"] in returned_urns
